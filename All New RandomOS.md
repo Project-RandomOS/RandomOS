@@ -3,4 +3,5 @@
 
 Your Go-To Random Useless OS!
 
-Be prepared on what you are going to witness with your own little grubby eyes, as you are going to see the BEST OS made in mankind. May this not be a small step in technology but a MAJOR LEAP in technology
+Be prepared on what you are going to witness with your own little grubby eyes, as you are going to see the BEST OS made in mankind. May this not be a small step in technology but a MAJOR LEAP in technology. And we DONT give millions of files to make y'all confused,
+we give you just 1 teeny tiny file which totally doesn't have more than 400 lines, right? RIGHT??????
