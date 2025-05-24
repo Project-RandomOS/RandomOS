@@ -1,0 +1,385 @@
+import pygame
+import sys
+import time
+
+pygame.init()
+
+WIDTH, HEIGHT = 900, 600
+FPS = 60
+
+WHITE = (255, 255, 255)
+LIGHT_GRAY = (200, 200, 200)
+GRAY = (100, 100, 100)
+DARK_GRAY = (40, 40, 40)
+BLACK = (0, 0, 0)
+BLUE = (0, 120, 215)
+RED = (220, 20, 60)
+SKY = (135, 206, 235)
+
+ICON_BG_COLORS = [
+    (255, 102, 102),
+    (102, 255, 178),
+    (102, 178, 255),
+    (255, 178, 102),
+]
+
+FONT = pygame.font.SysFont("consolas", 18)
+SMALL_FONT = pygame.font.SysFont("consolas", 14)
+BIG_FONT = pygame.font.SysFont("consolas", 32)
+
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("RandomOS")
+clock = pygame.time.Clock()
+
+class Window:
+    def __init__(self, rect, title):
+        self.rect = pygame.Rect(rect)
+        self.title = title
+        self.active = True
+        self.dragging = False
+        self.drag_offset = (0, 0)
+
+    def draw(self, surf):
+       
+        pygame.draw.rect(surf, DARK_GRAY, self.rect, border_radius=8)
+        
+        title_bar_rect = pygame.Rect(self.rect.x, self.rect.y, self.rect.width, 30)
+        pygame.draw.rect(surf, BLUE if self.active else GRAY, title_bar_rect, border_radius=8)
+       
+        title_surf = FONT.render(self.title, True, WHITE)
+        surf.blit(title_surf, (self.rect.x + 10, self.rect.y + 5))
+        
+        close_rect = pygame.Rect(self.rect.right - 30, self.rect.y + 5, 20, 20)
+        pygame.draw.rect(surf, RED, close_rect, border_radius=5)
+        close_x = FONT.render("X", True, WHITE)
+        close_x_rect = close_x.get_rect(center=close_rect.center)
+        surf.blit(close_x, close_x_rect)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 1:
+               
+                title_bar_rect = pygame.Rect(self.rect.x, self.rect.y, self.rect.width, 30)
+                if title_bar_rect.collidepoint(event.pos):
+                    self.dragging = True
+                    mx, my = event.pos
+                    self.drag_offset = (mx - self.rect.x, my - self.rect.y)
+                
+                close_rect = pygame.Rect(self.rect.right - 30, self.rect.y + 5, 20, 20)
+                if close_rect.collidepoint(event.pos):
+                    return "close"
+
+        elif event.type == pygame.MOUSEBUTTONUP:
+            if event.button == 1:
+                self.dragging = False
+
+        elif event.type == pygame.MOUSEMOTION:
+            if self.dragging:
+                mx, my = event.pos
+                new_x = mx - self.drag_offset[0]
+                new_y = my - self.drag_offset[1]
+                self.rect.x = max(0, min(WIDTH - self.rect.width, new_x))
+                self.rect.y = max(0, min(HEIGHT - self.rect.height, new_y))
+        return None
+
+class Notepad(Window):
+    def __init__(self):
+        super().__init__((350, 200, 500, 400), "Notepad")
+        self.text = ""
+        self.cursor_visible = True
+        self.cursor_timer = 0
+
+    def draw(self, surf):
+        super().draw(surf)
+      
+        area_rect = pygame.Rect(self.rect.x + 10, self.rect.y + 40, self.rect.width - 20, self.rect.height - 50)
+        pygame.draw.rect(surf, BLACK, area_rect)
+        
+        lines = self.text.split("\n")
+        y_offset = 0
+        for line in lines:
+            text_surf = FONT.render(line, True, WHITE)
+            surf.blit(text_surf, (area_rect.x + 5, area_rect.y + y_offset))
+            y_offset += FONT.get_height()
+     
+        self.cursor_timer += 1
+        if self.cursor_timer >= FPS:
+            self.cursor_timer = 0
+            self.cursor_visible = not self.cursor_visible
+        if self.cursor_visible:
+         
+            cursor_x = area_rect.x + 5 + FONT.size(lines[-1])[0]
+            cursor_y = area_rect.y + y_offset - FONT.get_height()
+            pygame.draw.rect(surf, WHITE, (cursor_x, cursor_y, 2, FONT.get_height()))
+
+    def handle_event(self, event):
+        res = super().handle_event(event)
+        if res == "close":
+            return "close"
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_BACKSPACE:
+                self.text = self.text[:-1]
+            elif event.key == pygame.K_RETURN:
+                self.text += "\n"
+            elif event.unicode.isprintable():
+                self.text += event.unicode
+        return None
+
+class Calculator(Window):
+    def __init__(self):
+        super().__init__((400, 200, 300, 400), "Calculator")
+        self.expression = ""
+        self.result = ""
+        self.buttons = []
+        self.create_buttons()
+
+    def create_buttons(self):
+        self.buttons.clear()
+        labels = [
+            ['7', '8', '9', '/'],
+            ['4', '5', '6', '*'],
+            ['1', '2', '3', '-'],
+            ['0', '.', '=', '+'],
+            ['C', 'DEL']
+        ]
+        btn_w, btn_h = 60, 50
+        margin_x, margin_y = 15, 120
+        spacing = 10
+        for r, row in enumerate(labels):
+            for c, label in enumerate(row):
+                x = self.rect.x + margin_x + c * (btn_w + spacing)
+                y = self.rect.y + margin_y + r * (btn_h + spacing)
+                btn_rect = pygame.Rect(x, y, btn_w, btn_h)
+                self.buttons.append({"rect": btn_rect, "label": label})
+
+    def draw(self, surf):
+        super().draw(surf)
+      
+        self.create_buttons()
+        
+        display_rect = pygame.Rect(self.rect.x + 15, self.rect.y + 50, self.rect.width - 30, 50)
+        pygame.draw.rect(surf, BLACK, display_rect, border_radius=5)
+        expr_surf = FONT.render(self.expression, True, WHITE)
+        surf.blit(expr_surf, (display_rect.x + 10, display_rect.y + 10))
+   
+        for btn in self.buttons:
+            pygame.draw.rect(surf, DARK_GRAY, btn["rect"], border_radius=5)
+            label_surf = FONT.render(btn["label"], True, WHITE)
+            label_rect = label_surf.get_rect(center=btn["rect"].center)
+            surf.blit(label_surf, label_rect)
+
+    def handle_event(self, event):
+        res = super().handle_event(event)
+        if res == "close":
+            return "close"
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            mx, my = event.pos
+            for btn in self.buttons:
+                if btn["rect"].collidepoint(mx, my):
+                    self.process_button(btn["label"])
+                    break
+        elif event.type == pygame.KEYDOWN:
+            if event.unicode.isprintable():
+                self.process_button(event.unicode)
+            elif event.key == pygame.K_BACKSPACE:
+                self.process_button('DEL')
+            elif event.key == pygame.K_RETURN:
+                self.process_button('=')
+        return None
+
+    def process_button(self, label):
+        if label in '0123456789.+-*/':
+            self.expression += label
+        elif label == 'C':
+            self.expression = ""
+            self.result = ""
+        elif label == 'DEL':
+            self.expression = self.expression[:-1]
+        elif label == '=':
+            try:
+                self.result = str(eval(self.expression))
+                self.expression = self.result
+            except Exception:
+                self.result = "Error"
+                self.expression = ""
+
+class ClockApp(Window):
+    def __init__(self):
+        super().__init__((450, 250, 400, 150), "Clock")
+
+    def draw(self, surf):
+        super().draw(surf)
+        now = time.localtime()
+        time_str = time.strftime("%H:%M:%S", now)
+        date_str = time.strftime("%a, %d %b %Y", now)
+        time_surf = BIG_FONT.render(time_str, True, WHITE)
+        date_surf = FONT.render(date_str, True, LIGHT_GRAY)
+        surf.blit(time_surf, (self.rect.x + 30, self.rect.y + 60))
+        surf.blit(date_surf, (self.rect.x + 30, self.rect.y + 110))
+
+class ImageViewer(Window):
+    def __init__(self):
+        super().__init__((350, 250, 400, 350), "Image Viewer")
+        try:
+            self.image = pygame.image.load("C:/Users/Think/Downloads/geometry_dash_v2-wallpaper-1152x720.jpg ")
+            self.image = pygame.transform.scale(self.image, (self.rect.width - 20, self.rect.height - 50))
+        except:
+            self.image = None
+
+    def draw(self, surf):
+        super().draw(surf)
+        if self.image:
+            surf.blit(self.image, (self.rect.x + 10, self.rect.y + 40))
+        else:
+            no_img_surf = FONT.render("No image found", True, WHITE)
+            surf.blit(no_img_surf, (self.rect.x + 20, self.rect.y + 60))
+
+class DesktopIcon:
+    def __init__(self, pos, label, app_class):
+        self.pos = pos
+        self.label = label
+        self.app_class = app_class
+        self.rect = pygame.Rect(pos[0], pos[1], 80, 80)
+        self.bg_color = ICON_BG_COLORS[hash(label) % len(ICON_BG_COLORS)]
+
+    def draw(self, surf):
+        pygame.draw.rect(surf, self.bg_color, self.rect, border_radius=15)
+        text_surf = FONT.render(self.label, True, BLACK)
+        text_rect = text_surf.get_rect(center=(self.rect.centerx, self.rect.bottom + 12))
+        surf.blit(text_surf, text_rect)
+
+class StartMenu:
+    def __init__(self):
+        self.rect = pygame.Rect(10, HEIGHT - 220, 220, 210)
+        self.visible = False
+        self.search_text = ""
+        self.apps = [
+            ("Notepad", Notepad),
+            ("Calculator", Calculator),
+            ("Clock", ClockApp),
+            ("Image Viewer", ImageViewer)
+        ]
+        self.filtered_apps = self.apps[:]
+
+    def draw(self, surf):
+        if not self.visible:
+            return
+        pygame.draw.rect(surf, DARK_GRAY, self.rect, border_radius=10)
+        
+        search_rect = pygame.Rect(self.rect.x + 10, self.rect.y + 10, self.rect.width - 20, 30)
+        pygame.draw.rect(surf, BLACK, search_rect, border_radius=6)
+        search_surf = FONT.render(self.search_text or "Search...", True, LIGHT_GRAY if not self.search_text else WHITE)
+        surf.blit(search_surf, (search_rect.x + 8, search_rect.y + 6))
+
+        y = self.rect.y + 50
+        for app_name, _ in self.filtered_apps:
+            app_surf = FONT.render(app_name, True, WHITE)
+            surf.blit(app_surf, (self.rect.x + 15, y))
+            y += 35
+
+    def handle_event(self, event):
+        if not self.visible:
+            return None
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_BACKSPACE:
+                self.search_text = self.search_text[:-1]
+            elif event.key == pygame.K_RETURN:
+                if self.filtered_apps:
+                    return self.filtered_apps[0][1]()
+            elif event.unicode.isprintable():
+                self.search_text += event.unicode
+            self.update_filter()
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            mx, my = event.pos
+            if self.rect.collidepoint(mx, my):
+                # Check app clicks
+                y = self.rect.y + 50
+                for app_name, app_class in self.filtered_apps:
+                    app_rect = pygame.Rect(self.rect.x + 15, y, self.rect.width - 30, 25)
+                    if app_rect.collidepoint(mx, my):
+                        return app_class()
+                    y += 35
+            else:
+                self.visible = False
+        return None
+
+    def update_filter(self):
+        search_lower = self.search_text.lower()
+        self.filtered_apps = [(n, c) for (n, c) in self.apps if search_lower in n.lower()]
+
+class FakeOS:
+    def __init__(self):
+        self.desktop_icons = [
+            DesktopIcon((50, 50), "Notepad", Notepad),
+            DesktopIcon((150, 50), "Calculator", Calculator),
+            DesktopIcon((250, 50), "Clock", ClockApp),
+            DesktopIcon((350, 50), "Image Viewer", ImageViewer),
+        ]
+        self.open_windows = []
+        self.start_menu = StartMenu()
+        self.clock = pygame.time.Clock()
+
+    def run(self):
+        running = True
+        while running:
+            screen.fill(SKY)
+            for icon in self.desktop_icons:
+                icon.draw(screen)
+
+            for win in self.open_windows:
+                win.draw(screen)
+
+            pygame.draw.rect(screen, DARK_GRAY, (0, HEIGHT - 40, WIDTH, 40))
+            
+            pygame.draw.rect(screen, BLUE, (10, HEIGHT - 35, 80, 30), border_radius=6)
+            start_text = FONT.render("Start", True, WHITE)
+            screen.blit(start_text, (25, HEIGHT - 30))
+
+            self.start_menu.draw(screen)
+
+            pygame.display.flip()
+            self.clock.tick(FPS)
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                    break
+                
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    mx, my = event.pos
+                    start_btn_rect = pygame.Rect(10, HEIGHT - 35, 80, 30)
+                    if start_btn_rect.collidepoint(mx, my):
+                        self.start_menu.visible = not self.start_menu.visible
+                    else:
+                        
+                        for icon in self.desktop_icons:
+                            if icon.rect.collidepoint(mx, my):
+                                self.open_windows.append(icon.app_class())
+                                break
+
+                handled = False
+                for win in reversed(self.open_windows):
+                    res = win.handle_event(event)
+                    if res == "close":
+                        self.open_windows.remove(win)
+                        handled = True
+                        break
+                    if res is not None:
+                        handled = True
+                        break
+                if handled:
+                    continue
+
+                res = self.start_menu.handle_event(event)
+                if isinstance(res, Window):
+                    self.open_windows.append(res)
+                    self.start_menu.visible = False
+
+        pygame.quit()
+        sys.exit()
+
+
+# --- Run the OS simulator ---
+
+if __name__ == "__main__":
+    FakeOS().run()
